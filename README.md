@@ -1,7 +1,5 @@
 # Resume Optimizer
 
-Resume Optimizer started as a small experiment to compare resumes against job descriptions, then gradually turned into a larger ATS-focused toolkit for resume analysis, rewriting, and cover letter generation.
-
 The idea behind the project is simple:
 
 Most people apply to jobs with the same resume every time, even though different roles prioritize different keywords, skills, and experience.
@@ -168,6 +166,4 @@ $env:OPENAI_API_KEY="your_api_key"
 
 ## Notes
 
-This project is intentionally built as a practical toolkit rather than a polished SaaS product.
-
-A lot of the features were added incrementally while experimenting with ATS scoring logic, AI-assisted rewriting, multilingual support, and recruiter-style resume optimization workflows.
+This project is intentionally built as a practical toolkit 
