@@ -1,9 +1,8 @@
 """Best-effort Saudi job search helper.
 
-This module builds search URLs for common job boards used in Saudi Arabia and
-tries to extract public job cards when possible. Some websites may block bots,
-change their HTML, or require login. In those cases, the module still returns
-search links so the user can continue manually.
+This module builds search URLs for common job boards used in Saudi Arabia,
+extracts public job cards when possible, then visits each listing URL to fetch
+fuller job descriptions for ATS matching.
 """
 
 from __future__ import annotations
@@ -26,6 +25,18 @@ HEADERS = {
     'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
 }
 
+DESCRIPTION_SELECTORS = [
+    '[class*=description]',
+    '[class*=job-description]',
+    '[class*=jobDescription]',
+    '[class*=details]',
+    '[class*=requirements]',
+    '[id*=description]',
+    '[id*=jobDescription]',
+    'main',
+    'article',
+]
+
 
 @dataclass
 class JobResult:
@@ -35,7 +46,9 @@ class JobResult:
     url: str
     source: str
     description: str = ''
+    full_description: str = ''
     posted_date: str = ''
+    extraction_status: str = 'listing_only'
 
 
 JOB_BOARD_URLS = {
@@ -85,6 +98,53 @@ def fetch_page(url: str) -> BeautifulSoup | None:
         return None
 
 
+def extract_full_description(job_url: str) -> tuple[str, str]:
+    """Visit a job listing URL and extract a fuller job description.
+
+    Returns:
+        (description_text, extraction_status)
+    """
+    soup = fetch_page(job_url)
+
+    if soup is None:
+        return '', 'detail_fetch_failed'
+
+    for tag in soup(['script', 'style', 'noscript', 'svg']):
+        tag.decompose()
+
+    candidate_texts = []
+
+    for selector in DESCRIPTION_SELECTORS:
+        for element in soup.select(selector):
+            text = clean_text(element.get_text(' '))
+            if len(text) >= 250:
+                candidate_texts.append(text)
+
+    if not candidate_texts:
+        body_text = clean_text(soup.get_text(' '))
+        if len(body_text) >= 250:
+            candidate_texts.append(body_text)
+
+    if not candidate_texts:
+        return '', 'description_not_found'
+
+    best_text = max(candidate_texts, key=len)
+    return best_text[:6000], 'description_fetched'
+
+
+def enrich_jobs_with_descriptions(jobs: List[JobResult]) -> List[JobResult]:
+    enriched_jobs = []
+
+    for job in jobs:
+        if job.url and job.url.startswith('http') and not job.title.lower().startswith('manual search'):
+            full_description, status = extract_full_description(job.url)
+            job.full_description = full_description
+            job.extraction_status = status
+        enriched_jobs.append(job)
+
+    return enriched_jobs
+
+
 def parse_generic_jobs(source: str, url: str, max_results: int = 10) -> List[JobResult]:
     soup = fetch_page(url)
 
@@ -125,7 +185,7 @@ def parse_generic_jobs(source: str, url: str, max_results: int = 10) -> List[Job
                 location='Saudi Arabia',
                 url=href,
                 source=source,
-                description=text[:500],
+                description=text[:700],
             )
         )
 
@@ -145,14 +205,16 @@ def deduplicate_jobs(jobs: List[JobResult]) -> List[JobResult]:
     return unique_jobs
 
 
-def search_jobs(query: str, location: str = 'Saudi Arabia', max_per_source: int = 10) -> List[JobResult]:
+def search_jobs(query: str, location: str = 'Saudi Arabia', max_per_source: int = 10, fetch_descriptions: bool = True) -> List[JobResult]:
     all_jobs: List[JobResult] = []
 
     for source in JOB_BOARD_URLS:
         url = build_search_url(source, query, location)
-        jobs = parse_generic_jobs(source, url, max_per_source=max_per_source)
+        jobs = parse_generic_jobs(source, url, max_results=max_per_source)
 
         if jobs:
+            if fetch_descriptions:
+                jobs = enrich_jobs_with_descriptions(jobs)
             all_jobs.extend(jobs)
         else:
             all_jobs.append(
@@ -163,6 +225,8 @@ def search_jobs(query: str, location: str = 'Saudi Arabia', max_per_source: int 
                     url=url,
                     source=source,
                     description='Live extraction was unavailable. Open the source search link manually.',
+                    full_description='',
+                    extraction_status='manual_search_link',
                 )
             )
 
@@ -173,8 +237,13 @@ def save_jobs_to_csv(jobs: List[JobResult], output_file: str = 'data/saudi_jobs.
     output_path = Path(output_file)
     output_path.parent.mkdir(exist_ok=True)
 
+    fieldnames = list(asdict(jobs[0]).keys()) if jobs else [
+        'title', 'company', 'location', 'url', 'source', 'description',
+        'full_description', 'posted_date', 'extraction_status'
+    ]
+
     with output_path.open('w', newline='', encoding='utf-8-sig') as file:
-        writer = csv.DictWriter(file, fieldnames=list(asdict(jobs[0]).keys()) if jobs else ['title', 'company', 'location', 'url', 'source', 'description', 'posted_date'])
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for job in jobs:
             writer.writerow(asdict(job))
@@ -183,6 +252,6 @@ def save_jobs_to_csv(jobs: List[JobResult], output_file: str = 'data/saudi_jobs.
 
 
 if __name__ == '__main__':
-    jobs = search_jobs('data analyst', 'Riyadh', max_per_source=5)
+    jobs = search_jobs('data analyst', 'Riyadh', max_per_source=5, fetch_descriptions=True)
     path = save_jobs_to_csv(jobs)
     print(f'Saved {len(jobs)} jobs to {path}')
