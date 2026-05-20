@@ -1,2 +1,5 @@
 scikit-learn
 pandas
+requests
+python-docx
+pypdf
