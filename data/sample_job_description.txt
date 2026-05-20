@@ -1,0 +1,10 @@
+We are looking for a Junior Data Analyst with strong Python skills.
+
+Responsibilities:
+- Analyze datasets using Python and pandas.
+- Build reports and dashboards.
+- Identify business insights from customer data.
+- Support automation of reporting tasks.
+
+Requirements:
+Python, pandas, reporting, analytics, communication, problem solving
