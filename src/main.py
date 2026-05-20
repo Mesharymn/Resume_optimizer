@@ -25,6 +25,11 @@ COMMON_SECTIONS = [
     'certifications', 'achievements'
 ]
 
+SECTION_HEADERS = {
+    'education': ['education', 'academic background', 'degree', 'university', 'college'],
+    'certifications': ['certifications', 'certification', 'licenses', 'credentials', 'courses'],
+}
+
 ACTION_VERBS = {
     'built', 'created', 'developed', 'led', 'managed', 'improved', 'reduced',
     'increased', 'analyzed', 'implemented', 'automated', 'designed', 'delivered',
@@ -34,7 +39,60 @@ ACTION_VERBS = {
 HARD_SKILLS = {
     'python', 'pandas', 'sql', 'excel', 'powerbi', 'tableau', 'dashboard',
     'analytics', 'automation', 'api', 'fastapi', 'flask', 'git', 'github',
-    'machine', 'learning', 'data', 'visualization', 'reporting', 'statistics'
+    'machine', 'learning', 'data', 'visualization', 'reporting', 'statistics',
+    'risk', 'governance', 'compliance', 'cybersecurity', 'cloud', 'azure', 'aws',
+    'project', 'management', 'agile', 'scrum', 'salesforce', 'sap', 'erp'
+}
+
+CERTIFICATION_SKILL_MAP = {
+    'pmp': ['project management', 'stakeholder management', 'risk management', 'planning'],
+    'capm': ['project management', 'project coordination', 'planning'],
+    'scrum': ['agile', 'scrum', 'sprint planning', 'team facilitation'],
+    'csm': ['agile', 'scrum', 'team facilitation'],
+    'psm': ['agile', 'scrum', 'team facilitation'],
+    'lean six sigma': ['process improvement', 'root cause analysis', 'quality improvement', 'dmaic'],
+    'six sigma': ['process improvement', 'quality improvement', 'dmaic'],
+    'black belt': ['process improvement', 'quality improvement', 'data-driven improvement'],
+    'green belt': ['process improvement', 'quality improvement'],
+    'cissp': ['cybersecurity', 'security governance', 'risk management', 'security architecture'],
+    'cism': ['information security management', 'security governance', 'risk management'],
+    'crisc': ['it risk management', 'governance', 'risk assessment'],
+    'security+': ['cybersecurity', 'network security', 'incident response'],
+    'ceh': ['ethical hacking', 'penetration testing', 'vulnerability assessment'],
+    'oscp': ['penetration testing', 'exploit development', 'security testing'],
+    'iso 27001': ['information security', 'compliance', 'security controls', 'audit'],
+    'aws': ['cloud computing', 'aws', 'cloud architecture', 'infrastructure'],
+    'azure': ['cloud computing', 'azure', 'cloud administration', 'identity management'],
+    'google cloud': ['cloud computing', 'gcp', 'cloud architecture'],
+    'ccna': ['networking', 'routing', 'switching', 'network troubleshooting'],
+    'ccnp': ['advanced networking', 'routing', 'switching', 'network design'],
+    'cdmp': ['data governance', 'data management', 'metadata management', 'data quality'],
+    'dama': ['data governance', 'data management', 'data quality'],
+    'dcam': ['data governance', 'data controls', 'data management'],
+    'grcp': ['governance', 'risk management', 'compliance'],
+    'salesforce': ['crm', 'salesforce administration', 'workflow automation', 'reporting'],
+    'sap': ['erp', 'sap', 'business process management', 'enterprise systems'],
+    'cfa': ['financial analysis', 'financial modeling', 'investment analysis'],
+    'cpa': ['accounting', 'financial reporting', 'audit'],
+    'power bi': ['dashboarding', 'data visualization', 'business intelligence'],
+    'tableau': ['data visualization', 'dashboarding', 'business intelligence'],
+    'google data analytics': ['data analysis', 'spreadsheet analysis', 'sql', 'dashboarding'],
+}
+
+EDUCATION_SKILL_MAP = {
+    'computer science': ['programming', 'software development', 'algorithms', 'data structures'],
+    'information systems': ['business systems', 'data analysis', 'systems analysis'],
+    'information technology': ['it support', 'networking', 'systems administration'],
+    'cybersecurity': ['cybersecurity', 'risk assessment', 'security controls'],
+    'data science': ['machine learning', 'statistics', 'python', 'data analysis'],
+    'statistics': ['statistics', 'data analysis', 'probability'],
+    'business administration': ['business analysis', 'operations management', 'strategy'],
+    'management information systems': ['systems analysis', 'data analysis', 'business technology'],
+    'finance': ['financial analysis', 'budgeting', 'forecasting'],
+    'accounting': ['accounting', 'financial reporting', 'audit'],
+    'marketing': ['market research', 'digital marketing', 'campaign analysis'],
+    'industrial engineering': ['process improvement', 'operations research', 'quality management'],
+    'engineering': ['problem solving', 'technical analysis', 'project coordination'],
 }
 
 WEIGHTS = {
@@ -126,6 +184,61 @@ def score_ratio(matched_items, target_items):
     return len(set(matched_items)) / len(set(target_items))
 
 
+def extract_section_text(text, section_name):
+    lines = text.splitlines()
+    headers = SECTION_HEADERS.get(section_name, [])
+    collected = []
+    collecting = False
+
+    all_possible_headers = set(COMMON_SECTIONS + ['courses', 'licenses', 'credentials'])
+
+    for line in lines:
+        cleaned = line.strip()
+        lowered = cleaned.lower()
+
+        if any(header in lowered for header in headers):
+            collecting = True
+            continue
+
+        if collecting and lowered in all_possible_headers:
+            break
+
+        if collecting:
+            collected.append(cleaned)
+
+    return '\n'.join(collected).strip()
+
+
+def infer_skills_from_text(text, skill_map):
+    lowered = text.lower()
+    inferred = []
+
+    for trigger, skills in skill_map.items():
+        if trigger in lowered:
+            inferred.extend(skills)
+
+    return sorted(set(inferred))
+
+
+def infer_skills_from_education_and_certifications(resume_text):
+    education_text = extract_section_text(resume_text, 'education')
+    certification_text = extract_section_text(resume_text, 'certifications')
+
+    if not education_text:
+        education_text = resume_text
+    if not certification_text:
+        certification_text = resume_text
+
+    education_skills = infer_skills_from_text(education_text, EDUCATION_SKILL_MAP)
+    certification_skills = infer_skills_from_text(certification_text, CERTIFICATION_SKILL_MAP)
+
+    return {
+        'education_skills': education_skills,
+        'certification_skills': certification_skills,
+        'all_inferred_skills': sorted(set(education_skills + certification_skills)),
+    }
+
+
 def find_contact_info(text):
     email_found = bool(re.search(r'[\w\.-]+@[\w\.-]+\.\w+', text))
     phone_found = bool(re.search(r'(\+?\d[\d\s\-()]{7,}\d)', text))
@@ -166,10 +279,15 @@ def analyze_ats(resume_text, job_text):
     matched_keywords = sorted(set(resume_keywords).intersection(set(job_keywords)))
     missing_keywords = sorted(set(job_keywords).difference(set(resume_keywords)))
 
-    resume_skills = sorted(set(clean_text(resume_text)).intersection(HARD_SKILLS))
+    inferred_skills = infer_skills_from_education_and_certifications(resume_text)
+    inferred_skill_tokens = set(clean_text(' '.join(inferred_skills['all_inferred_skills'])))
+
+    resume_skill_tokens = set(clean_text(resume_text)).intersection(HARD_SKILLS)
+    resume_skill_tokens = resume_skill_tokens.union(inferred_skill_tokens.intersection(HARD_SKILLS))
+
     job_skills = sorted(set(clean_text(job_text)).intersection(HARD_SKILLS))
-    matched_skills = sorted(set(resume_skills).intersection(set(job_skills)))
-    missing_skills = sorted(set(job_skills).difference(set(resume_skills)))
+    matched_skills = sorted(resume_skill_tokens.intersection(set(job_skills)))
+    missing_skills = sorted(set(job_skills).difference(resume_skill_tokens))
 
     sections_found = find_sections(resume_text)
     contact_score, contact_info = find_contact_info(resume_text)
@@ -194,23 +312,30 @@ def analyze_ats(resume_text, job_text):
         'missing_keywords': missing_keywords,
         'matched_skills': matched_skills,
         'missing_skills': missing_skills,
+        'education_skills': inferred_skills['education_skills'],
+        'certification_skills': inferred_skills['certification_skills'],
+        'inferred_skills': inferred_skills['all_inferred_skills'],
         'sections_found': sections_found,
         'missing_sections': sorted(set(COMMON_SECTIONS).difference(set(sections_found))),
         'contact_info': contact_info,
         'impact_numbers': impact_numbers,
         'action_verbs': action_verbs,
-        'suggestions': generate_ats_suggestions(missing_keywords, missing_skills, sections_found, contact_info, impact_numbers, action_verbs),
+        'suggestions': generate_ats_suggestions(missing_keywords, missing_skills, sections_found, contact_info, impact_numbers, action_verbs, inferred_skills['all_inferred_skills']),
     }
 
 
-def generate_ats_suggestions(missing_keywords, missing_skills, sections_found, contact_info, impact_numbers, action_verbs):
+def generate_ats_suggestions(missing_keywords, missing_skills, sections_found, contact_info, impact_numbers, action_verbs, inferred_skills=None):
     suggestions = []
+    inferred_skills = inferred_skills or []
 
     if missing_keywords:
         suggestions.append('Add relevant job-description keywords naturally into your experience and skills sections.')
 
     if missing_skills:
         suggestions.append(f"Highlight missing hard skills if accurate: {', '.join(missing_skills[:8])}.")
+
+    if inferred_skills:
+        suggestions.append('Move inferred skills from education/certifications into the dedicated skills section for better ATS visibility.')
 
     if 'summary' not in sections_found:
         suggestions.append('Add a short professional summary tailored to the target role.')
@@ -266,6 +391,16 @@ def build_report(results):
     lines.append('Missing Hard Skills')
     lines.append('-' * 19)
     lines.append(', '.join(results['missing_skills']) or 'No missing hard skills found.')
+    lines.append('')
+
+    lines.append('Inferred Skills From Education')
+    lines.append('-' * 30)
+    lines.append(', '.join(results.get('education_skills', [])) or 'No education-based skills inferred.')
+    lines.append('')
+
+    lines.append('Inferred Skills From Certifications')
+    lines.append('-' * 36)
+    lines.append(', '.join(results.get('certification_skills', [])) or 'No certification-based skills inferred.')
     lines.append('')
 
     lines.append('Suggestions')
