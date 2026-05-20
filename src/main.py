@@ -3,6 +3,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
+import requests
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 DEFAULT_RESUME = 'data/sample_resume.txt'
@@ -51,6 +52,20 @@ def read_text(file_path):
         raise FileNotFoundError(f'File not found: {file_path}')
 
     return path.read_text(encoding='utf-8')
+
+
+def fetch_job_description_from_url(url):
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+
+    html = response.text
+
+    text = re.sub(r'<script.*?</script>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+
+    return text.strip()
 
 
 def clean_text(text):
@@ -214,35 +229,10 @@ def build_report(results):
     lines.append(', '.join(results['missing_skills']) or 'No missing hard skills found.')
     lines.append('')
 
-    lines.append('Resume Structure')
-    lines.append('-' * 16)
-    lines.append('Sections found: ' + (', '.join(results['sections_found']) or 'None detected'))
-    lines.append('Missing sections: ' + (', '.join(results['missing_sections']) or 'None'))
-    lines.append('')
-
-    lines.append('Contact Info Check')
-    lines.append('-' * 18)
-    for item, found in results['contact_info'].items():
-        lines.append(f"{item.title()}: {'Found' if found else 'Missing'}")
-    lines.append('')
-
-    lines.append('Measurable Impact')
-    lines.append('-' * 17)
-    lines.append(', '.join(results['impact_numbers']) or 'No measurable achievements detected.')
-    lines.append('')
-
-    lines.append('Action Verbs Found')
-    lines.append('-' * 18)
-    lines.append(', '.join(results['action_verbs']) or 'No strong action verbs detected.')
-    lines.append('')
-
     lines.append('Suggestions')
     lines.append('-' * 11)
     for suggestion in results['suggestions']:
         lines.append(f'- {suggestion}')
-
-    lines.append('')
-    lines.append('Note: This is an ATS-style scoring model for resume review. It is not a hiring decision system.')
 
     return '\n'.join(lines)
 
@@ -257,6 +247,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run an ATS-style resume analysis against a job description.')
     parser.add_argument('--resume', default=DEFAULT_RESUME, help='Path to resume text file.')
     parser.add_argument('--job', default=DEFAULT_JOB, help='Path to job description text file.')
+    parser.add_argument('--job-url', help='Fetch job description directly from a webpage URL.')
     return parser.parse_args()
 
 
@@ -264,7 +255,12 @@ def main():
     args = parse_args()
 
     resume_text = read_text(args.resume)
-    job_text = read_text(args.job)
+
+    if args.job_url:
+        print('Fetching job description from URL...')
+        job_text = fetch_job_description_from_url(args.job_url)
+    else:
+        job_text = read_text(args.job)
 
     results = analyze_ats(resume_text, job_text)
     report = build_report(results)
