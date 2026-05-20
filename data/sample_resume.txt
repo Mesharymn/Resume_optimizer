@@ -1,0 +1,11 @@
+Meshary Alharbi
+AI Solutions and Automation Enthusiast
+
+Experience
+- Built Python tools for survey analysis and customer feedback reporting.
+- Worked with data analysis, reporting, and business process improvement.
+- Created automation scripts for cleaning and processing datasets.
+- Experienced in customer-facing business environments and KPI reporting.
+
+Skills
+Python, pandas, automation, reporting, GitHub, analytics, customer insights
