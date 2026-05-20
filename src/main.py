@@ -4,6 +4,8 @@ from collections import Counter
 from pathlib import Path
 
 import requests
+from docx import Document
+from pypdf import PdfReader
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 DEFAULT_RESUME = 'data/sample_resume.txt'
@@ -51,7 +53,44 @@ def read_text(file_path):
     if not path.exists():
         raise FileNotFoundError(f'File not found: {file_path}')
 
-    return path.read_text(encoding='utf-8')
+    suffix = path.suffix.lower()
+
+    if suffix == '.txt':
+        return path.read_text(encoding='utf-8')
+
+    if suffix == '.pdf':
+        return read_pdf(path)
+
+    if suffix == '.docx':
+        return read_docx(path)
+
+    raise ValueError('Unsupported file type. Use .txt, .pdf, or .docx files.')
+
+
+def read_pdf(path):
+    reader = PdfReader(str(path))
+    pages = []
+
+    for page in reader.pages:
+        pages.append(page.extract_text() or '')
+
+    text = '\n'.join(pages).strip()
+
+    if not text:
+        raise ValueError('No readable text found in PDF. Scanned PDFs need OCR before analysis.')
+
+    return text
+
+
+def read_docx(path):
+    document = Document(str(path))
+    paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+    text = '\n'.join(paragraphs).strip()
+
+    if not text:
+        raise ValueError('No readable text found in DOCX file.')
+
+    return text
 
 
 def fetch_job_description_from_url(url):
@@ -245,8 +284,8 @@ def save_report(report):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run an ATS-style resume analysis against a job description.')
-    parser.add_argument('--resume', default=DEFAULT_RESUME, help='Path to resume text file.')
-    parser.add_argument('--job', default=DEFAULT_JOB, help='Path to job description text file.')
+    parser.add_argument('--resume', default=DEFAULT_RESUME, help='Path to resume file. Supports .txt, .pdf, and .docx.')
+    parser.add_argument('--job', default=DEFAULT_JOB, help='Path to job description file. Supports .txt, .pdf, and .docx.')
     parser.add_argument('--job-url', help='Fetch job description directly from a webpage URL.')
     return parser.parse_args()
 
